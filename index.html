@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hostel Laundry Queue</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#12263A; --muted:#5B6F80; --paper:#F3F8F9; --card:#FFFFFF; --line:#D5E3E8;
+    --aqua:#2AA7B8; --aqua-d:#1B7F8E; --soap:#E3F4F7; --busy:#E4572E; --wait:#F2B632; --ok:#2E9E6B;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Bricolage Grotesque",system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--paper);color:var(--ink);line-height:1.5}
+  header{background:var(--ink);color:#fff;padding:28px 20px 22px}
+  .wrap{max-width:980px;margin:0 auto}
+  h1{margin:0 0 4px;font-size:clamp(1.7rem,5vw,2.6rem);font-weight:800;letter-spacing:-.02em}
+  header p{margin:0;color:#B9CBD6;max-width:52ch}
+  nav{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px}
+  nav button{font:inherit;font-weight:600;border:2px solid #34506A;background:transparent;color:#DCEAF1;padding:6px 16px;border-radius:999px;cursor:pointer}
+  nav button[aria-pressed="true"]{background:var(--aqua);border-color:var(--aqua);color:#06222A}
+  main{padding:24px 20px 60px}
+  h2{font-size:1.25rem;margin:30px 0 12px}
+  .grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+  .machine{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;text-align:center}
+  .drum{width:84px;height:84px;margin:0 auto 8px;border-radius:50%;border:6px solid #C3D5DC;background:var(--soap);position:relative;overflow:hidden}
+  .drum::after{content:"";position:absolute;inset:14px;border-radius:50%;background:linear-gradient(160deg,#fff 0 40%,var(--aqua) 40% 100%);opacity:.9}
+  .machine.busy .drum{border-color:var(--busy)}
+  .machine.busy .drum::after{background:conic-gradient(var(--aqua),#fff,var(--aqua),#fff,var(--aqua));animation:spin 1.2s linear infinite}
+  .machine.finished .drum{border-color:var(--ok)}
+  .machine.finished .drum::after{animation:none;background:var(--ok)}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @media (prefers-reduced-motion:reduce){.machine.busy .drum::after{animation:none}}
+  .machine b{display:block}
+  .machine small{color:var(--muted)}
+  .tag{display:inline-block;font-size:.8rem;font-weight:600;padding:1px 10px;border-radius:999px;margin-top:4px}
+  .free .tag{background:#DDF3E8;color:#146C45}
+  .busy .tag{background:#FBE0D8;color:#9B2F12}
+  .finished .tag{background:#DDF3E8;color:#146C45}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px}
+  form{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+  label{display:grid;gap:4px;font-weight:600;font-size:.92rem}
+  input,select{font:inherit;padding:10px 12px;border:1.5px solid var(--line);border-radius:10px;background:#fff;color:var(--ink)}
+  input:focus,select:focus,button:focus-visible{outline:3px solid var(--aqua);outline-offset:1px}
+  .full{grid-column:1/-1}
+  .btn{font:inherit;font-weight:700;border:0;border-radius:10px;padding:11px 20px;background:var(--aqua-d);color:#fff;cursor:pointer}
+  .btn.sm{padding:6px 12px;font-size:.88rem}
+  .btn.ghost{background:transparent;color:var(--ink);border:1.5px solid var(--line)}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .msg{min-height:1.4em;font-weight:600}
+  .msg.err{color:var(--busy)} .msg.ok{color:var(--ok)}
+  .tbl{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;min-width:640px}
+  th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);font-size:.93rem;vertical-align:middle}
+  th{color:var(--muted);font-weight:600}
+  .pos{font-weight:800;font-size:1.1rem}
+  .pill{font-weight:600;padding:2px 10px;border-radius:999px;font-size:.82rem}
+  .pill.waiting{background:#FDF0CC;color:#7A5600}
+  .pill.using{background:#FBE0D8;color:#9B2F12}
+  .pill.finished{background:#DDF3E8;color:#146C45}
+  .empty{padding:22px;text-align:center;color:var(--muted)}
+  .rules li{margin:4px 0}
+  footer{color:var(--muted);font-size:.85rem;padding:0 20px 40px}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <h1>Hostel Laundry Queue</h1>
+    <p>Pick your block, check which machines are free, and join the queue. No more waiting at the laundry room.</p>
+    <nav id="blockTabs" aria-label="Select block"></nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <h2 id="machTitle">Machines</h2>
+  <div class="grid" id="machines"></div>
+
+  <h2>Join the queue</h2>
+  <div class="card">
+    <form id="joinForm" autocomplete="off">
+      <label>Block
+        <select id="fBlock" required></select>
+      </label>
+      <label>Service
+        <select id="fType">
+          <option value="W">Washing machine</option>
+          <option value="D">Dryer</option>
+        </select>
+      </label>
+      <label>Preferred machine no.
+        <select id="fPref"></select>
+      </label>
+      <label>Full name
+        <input id="fName" required maxlength="60" placeholder="e.g. Aina Sofea">
+      </label>
+      <label>Matric no.
+        <input id="fMatric" required maxlength="20" placeholder="e.g. S12345">
+      </label>
+      <label>Tel no.
+        <input id="fTel" required inputmode="tel" maxlength="14" placeholder="e.g. 012-3456789">
+      </label>
+      <div class="full">
+        <button class="btn" type="submit">Join queue</button>
+        <span class="msg" id="formMsg" role="status" style="margin-left:12px"></span>
+      </div>
+    </form>
+  </div>
+
+  <h2 id="queueTitle">Queue</h2>
+  <div class="card tbl">
+    <table>
+      <thead><tr><th>Queue</th><th>Service</th><th>Name</th><th>Matric</th><th>Tel</th><th>Machine</th><th>Status</th><th></th></tr></thead>
+      <tbody id="queueBody"></tbody>
+    </table>
+    <div class="empty" id="queueEmpty" hidden>Nobody is in the queue for this block. Be the first to join.</div>
+  </div>
+
+  <h2>Laundry room rules</h2>
+  <div class="card">
+    <ul class="rules">
+      <li>Press <b>Start</b> only when you are at the machine and it is your turn.</li>
+      <li>Collect your clothes as soon as the timer ends, then press <b>Collected</b> so the next person can use the machine.</li>
+      <li>Washing takes about <span id="rWash"></span> minutes and drying about <span id="rDry"></span> minutes.</li>
+      <li>To leave the queue, press <b>Cancel</b> and confirm with your matric no.</li>
+    </ul>
+  </div>
+</main>
+
+<footer>
+  Matric and tel numbers are partly hidden on this page. Data is saved in this browser only (see README notes to share it across all devices).
+</footer>
+
+<script>
+/* ====== EDIT THESE SETTINGS ====== */
+const CONFIG = {
+  blocks: ["A","B","C","D","E","F","G","H"],  // your hostel blocks
+  washers: 4,        // washing machines per block
+  dryers: 2,         // dryers per block
+  washMinutes: 35,   // wash cycle length
+  dryMinutes: 45     // dry cycle length
+};
+/* ================================= */
+
+const KEY = "hostelLaundryQueue.v1";
+let state = load();
+let block = CONFIG.blocks[0];
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const typeName = t => t === "W" ? "Washer" : "Dryer";
+const count = t => t === "W" ? CONFIG.washers : CONFIG.dryers;
+const minutes = t => (t === "W" ? CONFIG.washMinutes : CONFIG.dryMinutes);
+
+function load(){
+  try { return JSON.parse(localStorage.getItem(KEY)) || {entries:[]}; }
+  catch(e){ return {entries:[]}; }
+}
+function save(){
+  try { localStorage.setItem(KEY, JSON.stringify(state)); } catch(e){}
+}
+const maskMatric = m => m.length <= 3 ? m : m.slice(0,2) + "•".repeat(Math.max(m.length-4,1)) + m.slice(-2);
+const maskTel = t => t.length <= 4 ? t : t.slice(0,3) + "-•••" + t.slice(-4);
+
+function inBlock(){ return state.entries.filter(e => e.block === block); }
+function machineUser(t, n){ return inBlock().find(e => e.status === "using" && e.type === t && e.machine === n); }
+function freeMachine(t, pref){
+  if (pref && !machineUser(t, pref)) return pref;
+  for (let n = 1; n <= count(t); n++) if (!machineUser(t, n)) return n;
+  return null;
+}
+function fmt(ms){
+  const s = Math.max(0, Math.ceil(ms/1000));
+  return String(Math.floor(s/60)).padStart(2,"0") + ":" + String(s%60).padStart(2,"0");
+}
+
+/* ---------- render ---------- */
+function renderTabs(){
+  $("blockTabs").innerHTML = CONFIG.blocks.map(b =>
+    `<button type="button" data-b="${esc(b)}" aria-pressed="${b===block}">Block ${esc(b)}</button>`).join("");
+  $("fBlock").innerHTML = CONFIG.blocks.map(b => `<option value="${esc(b)}">Block ${esc(b)}</option>`).join("");
+  $("fBlock").value = block;
+}
+function renderPref(){
+  const t = $("fType").value, n = count(t);
+  let o = `<option value="">Any free machine</option>`;
+  for (let i = 1; i <= n; i++) o += `<option value="${i}">${typeName(t)} ${i}</option>`;
+  $("fPref").innerHTML = o;
+}
+function renderMachines(){
+  $("machTitle").textContent = `Machines in Block ${block}`;
+  let html = "";
+  ["W","D"].forEach(t => {
+    for (let n = 1; n <= count(t); n++){
+      const u = machineUser(t, n);
+      let cls = "free", tag = "Free", extra = "<small>Ready to use</small>";
+      if (u){
+        const left = u.endsAt - Date.now();
+        if (left > 0){ cls = "busy"; tag = "In use"; extra = `<small>${fmt(left)} left</small>`; }
+        else { cls = "finished"; tag = "Finished"; extra = "<small>Waiting to be collected</small>"; }
+      }
+      html += `<div class="machine ${cls}"><div class="drum"></div><b>${typeName(t)} ${n}</b><span class="tag">${tag}</span><br>${extra}</div>`;
+    }
+  });
+  $("machines").innerHTML = html;
+}
+function renderQueue(){
+  $("queueTitle").textContent = `Queue for Block ${block}`;
+  const list = inBlock();
+  const firstWaiting = {};
+  const rank = {W:0, D:0};
+  const rows = [];
+  ["using","waiting"].forEach(st => {
+    list.filter(e => e.status === st).sort((a,b) => a.joined - b.joined).forEach(e => rows.push(e));
+  });
+  $("queueEmpty").hidden = rows.length > 0;
+  $("queueBody").innerHTML = rows.map(e => {
+    let pos = "", status = "", machine = "-", action = "";
+    if (e.status === "waiting"){
+      rank[e.type]++;
+      pos = "#" + rank[e.type];
+      status = `<span class="pill waiting">Waiting</span>`;
+      if (rank[e.type] === 1){
+        const m = freeMachine(e.type, e.pref);
+        action = `<button class="btn sm" data-act="start" data-id="${e.id}" ${m ? "" : "disabled"}>${m ? "Start" : "No machine free"}</button> `;
+      }
+      machine = e.pref ? `${typeName(e.type)} ${e.pref} (preferred)` : "Any";
+      action += `<button class="btn sm ghost" data-act="cancel" data-id="${e.id}">Cancel</button>`;
+    } else {
+      const left = e.endsAt - Date.now();
+      machine = `${typeName(e.type)} ${e.machine}`;
+      if (left > 0){ status = `<span class="pill using">In use · ${fmt(left)}</span>`; }
+      else { status = `<span class="pill finished">Finished</span>`; }
+      action = `<button class="btn sm" data-act="done" data-id="${e.id}">Collected</button>`;
+    }
+    return `<tr>
+      <td class="pos">${pos || "–"}</td>
+      <td>${typeName(e.type)}</td>
+      <td>${esc(e.name)}</td>
+      <td>${esc(maskMatric(e.matric))}</td>
+      <td>${esc(maskTel(e.tel))}</td>
+      <td>${esc(machine)}</td>
+      <td>${status}</td>
+      <td>${action}</td></tr>`;
+  }).join("");
+}
+function renderAll(){ renderMachines(); renderQueue(); }
+
+/* ---------- actions ---------- */
+function say(text, kind){
+  const m = $("formMsg"); m.textContent = text; m.className = "msg " + (kind || "");
+}
+$("blockTabs").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  block = b.dataset.b; renderTabs(); renderAll();
+});
+$("fBlock").addEventListener("change", e => { block = e.target.value; renderTabs(); renderAll(); });
+$("fType").addEventListener("change", renderPref);
+
+$("joinForm").addEventListener("submit", e => {
+  e.preventDefault();
+  const name = $("fName").value.trim();
+  const matric = $("fMatric").value.trim().toUpperCase();
+  const tel = $("fTel").value.replace(/[\s-]/g, "");
+  const type = $("fType").value;
+  if (!/^\+?\d{9,13}$/.test(tel)) return say("Enter a valid tel no., for example 012-3456789.", "err");
+  if (state.entries.some(x => x.block === block && x.matric === matric && x.type === type))
+    return say("You are already in this queue. Cancel your entry first to join again.", "err");
+  state.entries.push({
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
+    block, type, name, matric, tel,
+    pref: $("fPref").value ? Number($("fPref").value) : null,
+    joined: Date.now(), status: "waiting", machine: null, endsAt: null
+  });
+  save(); e.target.reset(); $("fBlock").value = block; renderPref();
+  say("You are in the queue. Check your position below.", "ok");
+  renderAll();
+});
+
+$("queueBody").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  const entry = state.entries.find(x => x.id === b.dataset.id); if (!entry) return;
+  if (b.dataset.act === "start"){
+    const m = freeMachine(entry.type, entry.pref);
+    if (!m) return;
+    entry.status = "using"; entry.machine = m;
+    entry.endsAt = Date.now() + minutes(entry.type) * 60000;
+  } else if (b.dataset.act === "done"){
+    state.entries = state.entries.filter(x => x.id !== entry.id);
+  } else if (b.dataset.act === "cancel"){
+    const m = prompt("Enter your matric no. to cancel:");
+    if (m === null) return;
+    if (m.trim().toUpperCase() !== entry.matric) return alert("Matric no. does not match.");
+    state.entries = state.entries.filter(x => x.id !== entry.id);
+  }
+  save(); renderAll();
+});
+
+window.addEventListener("storage", ev => { if (ev.key === KEY){ state = load(); renderAll(); } });
+
+$("rWash").textContent = CONFIG.washMinutes;
+$("rDry").textContent = CONFIG.dryMinutes;
+renderTabs(); renderPref(); renderAll();
+setInterval(renderAll, 1000);
+</script>
+</body>
+</html>
